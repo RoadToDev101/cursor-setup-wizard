@@ -130,7 +130,9 @@ extract_version() {
   echo "Error: No version found in filename" >&2; return 1
 }
 
-convert_to_mb() { printf "%.2f MB" "$(bc <<< "scale=2; $1 / 1048576")"; }
+convert_to_mb() { 
+    LC_NUMERIC=C printf "%.2f MB" "$(bc <<< "scale=2; $1 / 1048576")"
+}
 
 spinner() {
   local title="$1" command="$2" chars="|/-\\" i=0
