@@ -47,7 +47,8 @@ validate_os() {
   spinner "Checking system compatibility..." "sleep 1"
   os_name=$(grep -i '^NAME=' /etc/os-release | cut -d= -f2 | tr -d '"')
   grep -iqE "ubuntu|kubuntu|xubuntu|lubuntu|pop!_os|elementary|zorin|linux mint" /etc/os-release || {
-    logg error "$(printf "\n   This script is designed exclusively for Ubuntu and its popular derivatives.\n   Detected: %s. \n   Exiting..." "$os_name")"; exit 1
+    logg error "$(printf "\n   This script is designed exclusively for Ubuntu and its popular derivatives.\n   Detected: %s. \n   Exiting..." "$os_name")"
+    exit 1
   }
   logg success "$(echo -e "Detected $os_name (Ubuntu or derivative). System is compatible.")"
 }
@@ -59,7 +60,10 @@ install_script_alias() {
     if [[ -f "$rc_file" ]] && ! grep -Fxq "$alias_command" "$rc_file"; then
       echo -e "\n\n# This alias runs the Cursor Setup Wizard, simplifying installation and configuration.\n# For more details, visit: https://github.com/jorcelinojunior/cursor-setup-wizard\n$alias_command\n" >>"$rc_file"
       alias_added=true
-      [[ "$(basename "$SHELL")" == "$shell_name" ]] && { echo " 🏷️  Adding the alias \"${SCRIPT_ALIAS_NAME}\" to the current shell..."; $(basename "$SHELL") -c "source $rc_file"; }
+      [[ "$(basename "$SHELL")" == "$shell_name" ]] && {
+        echo " 🏷️  Adding the alias \"${SCRIPT_ALIAS_NAME}\" to the current shell..."
+        $(basename "$SHELL") -c "source $rc_file"
+      }
     fi
   done
   if [[ "$alias_added" == true ]]; then
@@ -107,7 +111,10 @@ check_and_install_dependencies() {
   logg success "All dependencies are good to go!"
 }
 
-show_banner() { clear; gum style --border double --border-foreground="$CLR_PRI" --margin "1 0 2 2" --padding "1 3" --align center --foreground="$CLR_LGT" --background="$CLR_BG" "$(echo -e "🧙 Welcome to the Cursor Setup Wizard! 🎉\n 📡 Effortlessly fetch, download, and configure Cursor. 🔧")"; }
+show_banner() {
+  clear
+  gum style --border double --border-foreground="$CLR_PRI" --margin "1 0 2 2" --padding "1 3" --align center --foreground="$CLR_LGT" --background="$CLR_BG" "$(echo -e "🧙 Welcome to the Cursor Setup Wizard! 🎉\n 📡 Effortlessly fetch, download, and configure Cursor. 🔧")"
+}
 
 show_balloon() { gum style --border double --border-foreground="$CLR_PRI" --margin "1 2" --padding "1 1" --align center --foreground="$CLR_LGT" "$1"; }
 
@@ -120,25 +127,39 @@ edit_this_script() {
   spinner "Opening the script in your default editor..." "sleep 2"
   for e in "${editors[@]}"; do
     local cmd="${e%%:*}" name="${e#*:}"
-    command -v "$cmd" >/dev/null 2>&1 && { logg success "$(echo -e "\n    The script is now open in $name. Make your changes and save the file.\n    Remember to close the current script and reopen it with the \n    command 'cursor-setup' to see your changes.")"; "$cmd" "$SCRIPT_PATH"; return 0; }
+    command -v "$cmd" >/dev/null 2>&1 && {
+      logg success "$(echo -e "\n    The script is now open in $name. Make your changes and save the file.\n    Remember to close the current script and reopen it with the \n    command 'cursor-setup' to see your changes.")"
+      "$cmd" "$SCRIPT_PATH"
+      return 0
+    }
   done
-  logg error "No suitable editor found to open the script."; return 1
+  logg error "No suitable editor found to open the script."
+  return 1
 }
 
 extract_version() {
-  [[ "$1" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] && { echo "${BASH_REMATCH[1]}"; return 0; }
-  echo "Error: No version found in filename" >&2; return 1
+  [[ "$1" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] && {
+    echo "${BASH_REMATCH[1]}"
+    return 0
+  }
+  echo "Error: No version found in filename" >&2
+  return 1
 }
 
-convert_to_mb() { 
-    LC_NUMERIC=C printf "%.2f MB" "$(bc <<< "scale=2; $1 / 1048576")"
+convert_to_mb() {
+  LC_NUMERIC=C printf "%.2f MB" "$(bc <<<"scale=2; $1 / 1048576")"
 }
 
 spinner() {
   local title="$1" command="$2" chars="|/-\\" i=0
   command -v gum >/dev/null 2>&1 && gum spin --spinner "$SPINNER" --spinner.foreground="$CLR_SCS" --title "$(gum style --bold "$title")" -- bash -c "$command" || {
-    printf "%s " "$title"; bash -c "$command" & local pid=$!
-    while kill -0 $pid 2>/dev/null; do printf "\r%s %c" "$title" "${chars:i++%${#chars}}"; sleep 0.1; done
+    printf "%s " "$title"
+    bash -c "$command" &
+    local pid=$!
+    while kill -0 $pid 2>/dev/null; do
+      printf "\r%s %c" "$title" "${chars:i++%${#chars}}"
+      sleep 0.1
+    done
     printf "\r\033[K"
   }
 }
@@ -147,7 +168,8 @@ sudo_please() {
   while true; do
     [[ -z "$sudo_pass" ]] && sudo_pass=$(gum input --password --placeholder "Please enter your 'sudo' password: " --header=" 🛡️  Let's keep things secure. " --header.foreground="$CLR_LGT" --header.background="$CLR_PRI" --header.margin="1 0 1 2" --header.align="center" --cursor.background="$CLR_LGT" --cursor.foreground="$CLR_PRI" --prompt="🗝️  ")
     echo "$sudo_pass" | sudo -S -k true >/dev/null 2>&1 && break
-    logg error "Oops! The password was incorrect. Try again."; sudo_pass=""
+    logg error "Oops! The password was incorrect. Try again."
+    sudo_pass=""
   done
 }
 
@@ -156,14 +178,44 @@ logg() {
   local SYMBOL="" COLOR="" LABEL="" BGCOLOR="" FG=""
   GUM_AVAILABLE=$(command -v gum >/dev/null && echo true || echo false)
   case "$TYPE" in
-    error) SYMBOL="$(echo -e "\n ✖")"; COLOR="$CLR_ERR"; LABEL=" ERROR "; BGCOLOR="$CLR_ERR"; FG="--foreground=$CLR_BG" ;;
-    info) SYMBOL=" »"; COLOR="$CLR_INF" ;;
-    md) command -v glow >/dev/null && glow "$MSG" || cat "$MSG"; return ;;
-    prompt) SYMBOL=" ▶"; COLOR="$CLR_PRI" ;;
-    star) SYMBOL=" ◆"; COLOR="$CLR_WRN" ;;
-    start|success) SYMBOL=" ✔"; COLOR="$CLR_SCS" ;;
-    warn) SYMBOL="$(echo -e "\n ◆")"; COLOR="$CLR_WRN"; LABEL=" WARNING "; BGCOLOR="$CLR_WRN"; FG="--foreground=$CLR_BG" ;;
-    *) echo "$MSG"; return ;;
+  error)
+    SYMBOL="$(echo -e "\n ✖")"
+    COLOR="$CLR_ERR"
+    LABEL=" ERROR "
+    BGCOLOR="$CLR_ERR"
+    FG="--foreground=$CLR_BG"
+    ;;
+  info)
+    SYMBOL=" »"
+    COLOR="$CLR_INF"
+    ;;
+  md)
+    command -v glow >/dev/null && glow "$MSG" || cat "$MSG"
+    return
+    ;;
+  prompt)
+    SYMBOL=" ▶"
+    COLOR="$CLR_PRI"
+    ;;
+  star)
+    SYMBOL=" ◆"
+    COLOR="$CLR_WRN"
+    ;;
+  start | success)
+    SYMBOL=" ✔"
+    COLOR="$CLR_SCS"
+    ;;
+  warn)
+    SYMBOL="$(echo -e "\n ◆")"
+    COLOR="$CLR_WRN"
+    LABEL=" WARNING "
+    BGCOLOR="$CLR_WRN"
+    FG="--foreground=$CLR_BG"
+    ;;
+  *)
+    echo "$MSG"
+    return
+    ;;
   esac
   { $GUM_AVAILABLE && gum style "$(gum style --foreground="$COLOR" "$SYMBOL") $(gum style --bold ${BGCOLOR:+--background="$BGCOLOR"} ${FG:-} "${LABEL:-}") $(gum style "$MSG")"; } || { echo "${TYPE^^}: $MSG"; }
   return 0
@@ -244,6 +296,14 @@ download_appimage() {
 setup_launchers() {
   local error=false
   logg prompt "Creating desktop launchers for Cursor..."
+
+  # First ensure dbus-launch is installed
+  if ! command -v dbus-launch >/dev/null 2>&1; then
+    logg info "Installing dbus-x11 package..."
+    sudo_please
+    spinner "Installing dbus-x11" "sudo -S <<< \"$sudo_pass\" apt-get install -y dbus-x11"
+  fi
+
   for file_path in "$SYSTEM_DESKTOP_FILE" "$USER_DESKTOP_FILE"; do
     if spinner "Creating launcher at $file_path" "sleep 1 && echo '[Desktop Entry]
 Type=Application
@@ -284,27 +344,80 @@ MimeType=x-scheme-handler/cursor;' > \"$file_path\""; then
 configure_apparmor() {
   logg prompt "Setting up AppArmor configuration..."
   sudo_please
-  if ! systemctl is-active --quiet apparmor; then
-    logg warn "AppArmor is not active. Enabling and starting the service..."
-    spinner "Enabling and starting AppArmor" "sudo -S <<< \"$sudo_pass\" systemctl enable apparmor && sudo -S <<< \"$sudo_pass\" systemctl start apparmor"
-    logg success "AppArmor service started and enabled."
+
+  # Check if AppArmor is installed
+  if ! command -v apparmor_parser >/dev/null 2>&1; then
+    logg error "AppArmor is not installed. Installing AppArmor packages..."
+    spinner "Installing AppArmor" "sudo -S <<< \"$sudo_pass\" apt-get install -y apparmor apparmor-utils"
   fi
-  sudo -S <<< "$sudo_pass" bash -c "printf 'abi <abi/4.0>,\ninclude <tunables/global>\n\nprofile cursor \"%s\" flags=(unconfined) {\n  userns,\n  include if exists <local/cursor>\n}\n' \"$local_path\" > \"$APPARMOR_PROFILE\""
+
+  # Create AppArmor profile with correct syntax
+  sudo -S bash -c "printf '#include <tunables/global>
+
+profile cursor \"%s\" flags=(unconfined) {
+  #include <abstractions/base>
+  #include <abstractions/user-tmp>
+
+  %s ixr,  # Allow inheritable execute with read
+  owner @{HOME}/** rwk,
+  /tmp/** rwk,
+  
+  # Additional common permissions
+  /usr/share/** r,
+  /etc/fonts/** r,
+  /usr/lib/** rm,
+}\n' \"$local_path\" \"$local_path\" > \"$APPARMOR_PROFILE\"" <<<"$sudo_pass"
+
   if spinner "Applying AppArmor profile" "sleep 2 && sudo -S <<< \"$sudo_pass\" apparmor_parser -r \"$APPARMOR_PROFILE\""; then
     logg success "AppArmor profile successfully applied!"
   else
-    logg error "Couldn't apply AppArmor profile. Check your system configuration."
+    logg warn "AppArmor profile application failed. Cursor will still work, but with reduced security isolation."
   fi
 }
 
 add_cli_command() {
   logg prompt "Adding the 'cursor' command to your system..."
   sudo_please
-  sudo -S <<< "$sudo_pass" bash -c "printf '#!/bin/bash\n\nAPPIMAGE_PATH=\"%s\"\n\nif [[ ! -f \"\$APPIMAGE_PATH\" ]]; then\n   echo \"Error: Cursor AppImage not found at \$APPIMAGE_PATH\" >&2;\n   exit 1;\nfi\n\n\"\$APPIMAGE_PATH\" \"\$@\" &> /dev/null &\n' \"$local_path\" > /usr/local/bin/cursor"
-  if spinner "Updating permissions for '/usr/local/bin/cursor'" "sleep 2 && sudo -S <<< \"$sudo_pass\" chmod +x /usr/local/bin/cursor"; then
-    logg success "Permissions updated for '/usr/local/bin/cursor'."
+
+  # Create a temporary file first
+  local temp_file
+  temp_file=$(mktemp)
+  cat >"$temp_file" <<EOF
+#!/bin/bash
+
+APPIMAGE_PATH="$local_path"
+
+if [[ ! -f "\$APPIMAGE_PATH" ]]; then
+   echo "Error: Cursor AppImage not found at \$APPIMAGE_PATH" >&2
+   exit 1
+fi
+
+"\$APPIMAGE_PATH" "\$@" &> /dev/null &
+EOF
+
+  # Move the file to the final location with sudo
+  if spinner "Creating CLI command" "sudo -S <<< \"$sudo_pass\" mkdir -p /usr/local/bin && sudo -S <<< \"$sudo_pass\" mv \"$temp_file\" /usr/local/bin/cursor"; then
+    logg success "CLI command file created."
+  else
+    logg error "Failed to create CLI command file."
+    rm -f "$temp_file"
+    return 1
   fi
-  logg success "$(printf "The 'cursor' command is now ready to use! ✨\n    Here are a few ways to use it:\n      $ cursor                  # Open the Cursor application\n      $ cursor .                # Open the current directory in Cursor\n      $ cursor /some/directory  # Open a specific directory in Cursor\n      $ cursor /path/to/file.py # Open a specific file in Cursor\n")"
+
+  if spinner "Setting permissions" "sudo -S <<< \"$sudo_pass\" chmod +x /usr/local/bin/cursor"; then
+    logg success "Permissions updated for '/usr/local/bin/cursor'."
+  else
+    logg error "Failed to set permissions for the CLI command."
+    return 1
+  fi
+
+  # Verify the command exists and is executable
+  if [[ -x "/usr/local/bin/cursor" ]]; then
+    logg success "$(printf "The 'cursor' command is now ready to use! ✨\n    Here are a few ways to use it:\n      $ cursor                  # Open the Cursor application\n      $ cursor .                # Open the current directory in Cursor\n      $ cursor /some/directory  # Open a specific directory in Cursor\n      $ cursor /path/to/file.py # Open a specific file in Cursor\n")"
+  else
+    logg error "Command creation failed. Please check permissions and try again."
+    return 1
+  fi
 }
 
 menu() {
@@ -319,48 +432,48 @@ menu() {
     _exit=$(gum style --foreground="$CLR_LGT" --italic "Exit")
     option=$(echo -e "$all_in_one\n$reconfigure_all\n$setup_apparmor\n$add_cli_command\n$edit_script\n$_exit" | gum choose --header "🧙 Pick what you'd like to do next:" --header.margin="0 0 0 2" --header.border="rounded" --header.padding="0 2 0 2" --header.italic --header.foreground="$CLR_LGT" --cursor=" ➤ " --cursor.foreground="$CLR_ERR" --cursor.background="$CLR_PRI" --selected.foreground="$CLR_LGT" --selected.background="$CLR_PRI")
     case "$option" in
-      "$(nostyle "$all_in_one")")
-        fetch_remote_version
-        if ! find_local_version || [[ "$local_md5" != "$remote_md5" ]]; then
-          download_appimage
-          download_logo
-          setup_launchers
-          configure_apparmor
-          add_cli_command
-        else
-          find_local_version true
-          show_balloon "$(echo -e "🧙 The latest version is already installed and ready to use! 🎈\n🌟 Ready to start coding? Let's build something amazing! 💻")"
-        fi
-        ;;
-      "$(nostyle "$reconfigure_all")")
-        if find_local_version true; then
-          download_logo
-          setup_launchers
-          configure_apparmor
-          add_cli_command
-        fi
-        ;;
-      "$(nostyle "$setup_apparmor")")
-        if find_local_version true; then
-          configure_apparmor
-        fi
-        ;;
-      "$(nostyle "$add_cli_command")")
-        if find_local_version true; then
-          add_cli_command
-        fi
-        ;;
-      "$(nostyle "$edit_script")")
-        edit_this_script
-        ;;
-      "$(nostyle "$_exit")")
-          if gum confirm "Are you sure you want to exit?" --show-help --prompt.foreground="$CLR_WRN" --selected.background="$CLR_PRI"; then
-            clear;
-            gum style --border double --border-foreground="$CLR_PRI" --padding "1 3" --margin "1 2" --align center --background "$CLR_BG" --foreground "$CLR_LGT" "$(echo -e "🎩🪄 Thanks for stopping by! Happy coding with Cursor!\n\n Enjoyed this tool? Support it and keep the magic alive!\n☕ Buy me a coffee 🤗\n $(gum style  --foreground="$CLR_WRN" "https://buymeacoffee.com/jorcelinojunior") \n\n Your kindness helps improve this tool for everyone!\n Thank you for your support! 🌻💜 ")"
-            echo -e " \n\n "
-            break
-          fi
-        ;;
+    "$(nostyle "$all_in_one")")
+      fetch_remote_version
+      if ! find_local_version || [[ "$local_md5" != "$remote_md5" ]]; then
+        download_appimage
+        download_logo
+        setup_launchers
+        configure_apparmor
+        add_cli_command
+      else
+        find_local_version true
+        show_balloon "$(echo -e "🧙 The latest version is already installed and ready to use! 🎈\n🌟 Ready to start coding? Let's build something amazing! 💻")"
+      fi
+      ;;
+    "$(nostyle "$reconfigure_all")")
+      if find_local_version true; then
+        download_logo
+        setup_launchers
+        configure_apparmor
+        add_cli_command
+      fi
+      ;;
+    "$(nostyle "$setup_apparmor")")
+      if find_local_version true; then
+        configure_apparmor
+      fi
+      ;;
+    "$(nostyle "$add_cli_command")")
+      if find_local_version true; then
+        add_cli_command
+      fi
+      ;;
+    "$(nostyle "$edit_script")")
+      edit_this_script
+      ;;
+    "$(nostyle "$_exit")")
+      if gum confirm "Are you sure you want to exit?" --show-help --prompt.foreground="$CLR_WRN" --selected.background="$CLR_PRI"; then
+        clear
+        gum style --border double --border-foreground="$CLR_PRI" --padding "1 3" --margin "1 2" --align center --background "$CLR_BG" --foreground "$CLR_LGT" "$(echo -e "🎩🪄 Thanks for stopping by! Happy coding with Cursor!\n\n Enjoyed this tool? Support it and keep the magic alive!\n☕ Buy me a coffee 🤗\n $(gum style --foreground="$CLR_WRN" "https://buymeacoffee.com/jorcelinojunior") \n\n Your kindness helps improve this tool for everyone!\n Thank you for your support! 🌻💜 ")"
+        echo -e " \n\n "
+        break
+      fi
+      ;;
     esac
     if gum confirm "$(echo -e "\nWould you like to do something else?" | gum style --foreground="$CLR_PRI")" --affirmative="《Back" --negative="✖ Close" --show-help --prompt.foreground="$CLR_WRN" --selected.background="$CLR_PRI"; then
       show_banner
